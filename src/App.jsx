@@ -11,18 +11,6 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
 
-const snailIcon = L.divIcon({
-  html: '<div style="font-size: 40px; filter: drop-shadow(0 0 6px red)">🐌</div>',
-  iconSize: [60, 60],
-  className: ''
-})
-
-const playerIcon = L.divIcon({
-  html: '<div style="font-size: 32px; filter: drop-shadow(0 0 6px #00ffff)">👤</div>',
-  iconSize: [40, 40],
-  className: ''
-})
-
 const SNAIL_SPEED = 0.00005
 
 function moveSnailToward(snail, player) {
@@ -43,6 +31,7 @@ function App() {
   const [playerPos, setPlayerPos] = useState(null)
   const [snailPos, setSnailPos] = useState(null)
   const [otherSnails, setOtherSnails] = useState([])
+  const [players, setPlayers] = useState({})
   const [trail, setTrail] = useState([])
   const [distance, setDistance] = useState(null)
   const snailRef = useRef(null)
@@ -66,7 +55,6 @@ function App() {
       setPlayerPos(player)
       playerRef.current = player
 
-      // 存玩家位置到Supabase
       await supabase.from('players').upsert({
         id: playerIdRef.current,
         name: playerName,
@@ -75,7 +63,6 @@ function App() {
         longitude,
       })
 
-      // 檢查有沒有現有蝸牛
       const { data: existingSnail } = await supabase
         .from('snails')
         .select('*')
@@ -111,7 +98,6 @@ function App() {
       setSnailPos([...newSnail])
       setTrail(prev => [...prev, [...newSnail]].slice(-10))
 
-      // 存蝸牛新位置到Supabase
       await supabase.from('snails').update({
         latitude: newSnail[0],
         longitude: newSnail[1],
@@ -129,15 +115,13 @@ function App() {
     return () => clearInterval(interval)
   }, [!!snailPos])
 
-  // 即時監聽其他玩家的蝸牛
+  // 監聽其他玩家蝸牛
   useEffect(() => {
     if (!joined) return
     const channel = supabase
       .channel('snails-room')
       .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'snails',
+        event: '*', schema: 'public', table: 'snails',
         filter: `room_code=eq.${roomCode}`,
       }, (payload) => {
         if (payload.new.player_id !== playerIdRef.current) {
@@ -151,7 +135,27 @@ function App() {
     return () => supabase.removeChannel(channel)
   }, [joined])
 
-  // 登入畫面
+  // 監聽玩家名字
+  useEffect(() => {
+    if (!joined) return
+    supabase.from('players').select('*').eq('room_code', roomCode).then(({ data }) => {
+      if (data) {
+        const map = {}
+        data.forEach(p => { map[p.id] = p.name })
+        setPlayers(map)
+      }
+    })
+    const channel = supabase.channel('players-room')
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'players',
+        filter: `room_code=eq.${roomCode}`,
+      }, (payload) => {
+        setPlayers(prev => ({ ...prev, [payload.new.id]: payload.new.name }))
+      })
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [joined])
+
   if (!joined) return (
     <div style={{
       background: '#0a0a0a', height: '100vh', display: 'flex', flexDirection: 'column',
@@ -221,17 +225,29 @@ function App() {
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           attribution='&copy; <a href="https://carto.com/">CARTO</a>'
         />
-        <Marker position={playerPos} icon={playerIcon}>
+        <Marker position={playerPos} icon={L.divIcon({
+          html: `<div style="text-align:center; font-size: 32px; filter: drop-shadow(0 0 6px #00ffff)">👤<br/><span style="font-size:11px; color:#00ffff; font-family:monospace">${playerName.toUpperCase()}</span></div>`,
+          iconSize: [80, 55],
+          className: ''
+        })}>
           <Popup>{playerName}</Popup>
         </Marker>
         {snailPos && (
-          <Marker position={snailPos} icon={snailIcon}>
+          <Marker position={snailPos} icon={L.divIcon({
+            html: `<div style="text-align:center; font-size: 40px; filter: drop-shadow(0 0 6px red)">🐌<br/><span style="font-size:11px; color:#ff4444; font-family:monospace">${playerName.toUpperCase()}'S SNAIL</span></div>`,
+            iconSize: [100, 65],
+            className: ''
+          })}>
             <Popup>🐌 你的蝸牛</Popup>
           </Marker>
         )}
         {otherSnails.map(s => (
-          <Marker key={s.player_id} position={[s.latitude, s.longitude]} icon={snailIcon}>
-            <Popup>🐌 別人的蝸牛</Popup>
+          <Marker key={s.player_id} position={[s.latitude, s.longitude]} icon={L.divIcon({
+            html: `<div style="text-align:center; font-size: 40px; filter: drop-shadow(0 0 6px red)">🐌<br/><span style="font-size:11px; color:#ff4444; font-family:monospace">${(players[s.player_id] || '???').toUpperCase()}'S SNAIL</span></div>`,
+            iconSize: [100, 65],
+            className: ''
+          })}>
+            <Popup>🐌 {players[s.player_id] || '???'} 的蝸牛</Popup>
           </Marker>
         ))}
         {trail.length > 1 && (
