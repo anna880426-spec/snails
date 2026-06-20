@@ -74,7 +74,7 @@ function App() {
         snailStart = [existingSnail.latitude, existingSnail.longitude]
       } else {
         const angle = Math.random() * 2 * Math.PI
-        const dist = (Math.random() * 50 + 50) / 111000
+        const dist = (Math.random() * 400 + 100) / 111000
         snailStart = [latitude + Math.cos(angle) * dist, longitude + Math.sin(angle) * dist]
         await supabase.from('snails').insert({
           player_id: playerIdRef.current,
