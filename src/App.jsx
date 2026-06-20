@@ -86,7 +86,9 @@ function App() {
       if (existingSnail) {
         snailStart = [existingSnail.latitude, existingSnail.longitude]
       } else {
-        snailStart = [latitude + 0.01, longitude + 0.01]
+        const angle = Math.random() * 2 * Math.PI
+        const dist = (Math.random() * 50 + 50) / 111000
+        snailStart = [latitude + Math.cos(angle) * dist, longitude + Math.sin(angle) * dist]
         await supabase.from('snails').insert({
           player_id: playerIdRef.current,
           room_code: roomCode,
