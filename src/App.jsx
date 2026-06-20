@@ -39,12 +39,14 @@ function App() {
   const playerIdRef = useRef(localStorage.getItem('playerId') || crypto.randomUUID())
 
   const handleJoin = async () => {
-    if (!playerName || !roomCode) return
-    localStorage.setItem('playerName', playerName)
-    localStorage.setItem('roomCode', roomCode)
-    localStorage.setItem('playerId', playerIdRef.current)
-    setJoined(true)
-  }
+      if (!playerName || !roomCode) return
+      const newId = crypto.randomUUID()
+      playerIdRef.current = newId
+      localStorage.setItem('playerName', playerName)
+      localStorage.setItem('roomCode', roomCode)
+      localStorage.setItem('playerId', newId)
+      setJoined(true)
+    }
 
   useEffect(() => {
     if (!joined) return
